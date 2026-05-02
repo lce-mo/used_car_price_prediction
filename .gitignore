@@ -1,0 +1,35 @@
+# Raw data and generated experiment outputs
+data/
+outputs/
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+.venv/
+venv/
+env/
+
+# Model artifacts and large binary outputs
+*.pkl
+*.pickle
+*.joblib
+*.model
+*.bin
+*.parquet
+*.feather
+
+# Local notebooks/checkpoints
+.ipynb_checkpoints/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
