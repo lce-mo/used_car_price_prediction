@@ -1,0 +1,2 @@
+Keep the processed data directory in git; generated data is ignored.
+

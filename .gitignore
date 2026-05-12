@@ -1,12 +1,36 @@
 # Raw data and generated experiment outputs
-data/
-outputs/
+data/raw/*
+!data/raw/.gitkeep
+data/interim/*
+!data/interim/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/test/*
+
+outputs/*
+!outputs/models/
+!outputs/predictions/
+!outputs/submissions/
+!outputs/reports/
+!outputs/figures/
+outputs/models/*
+!outputs/models/.gitkeep
+outputs/predictions/*
+!outputs/predictions/.gitkeep
+outputs/submissions/*
+!outputs/submissions/.gitkeep
+outputs/reports/*
+!outputs/reports/.gitkeep
+outputs/figures/*
+!outputs/figures/.gitkeep
 
 # Python caches and local environments
 __pycache__/
+*.pyc
 *.py[cod]
 *$py.class
 .python-version
+.env
 .venv/
 venv/
 env/

@@ -14,7 +14,7 @@
 |---|---|---|---|---:|---:|---|---|
 | 4/28 | E001 | parser_fix | 修正原始数据读取：`sep=r"\s+"` 改为 `sep=" "`，重建正确口径四模型融合 | 479.80 | 468.1260 | 相比旧融合线上 `726.6409`，线上 -258.5149 | 主线，验证体系重建 |
 | 4/28 | E002 | correct_log_s50 | 正确口径全量单模型：`log1p + model TE s50 + group stats` | 489.29 / fold 515.26 | - | 新 baseline | 保留 |
-| 4/28 | E003 | correct_4blend | 正确口径四模型融合：`0.175 log_s50 + 0.425 sqrt_s50 + 0.2 log_s10 + 0.2 log_s20` | 479.80 | 468.1260 | 相比 E002 本地 -9.50 | 当前线上最优 |
+| 4/28 | E003 | correct_4blend | 正确口径四模型融合：`0.175 log_s50 + 0.425 sqrt_s50 + 0.2 log_s10 + 0.2 log_s20` | 479.80 | 468.1260 | 相比 E002 本地 -9.50 | 曾为线上最优 |
 | 4/28 | E004 | health_50k | 50k 体检：特征健康、重要性、消融；确认 group stats 和 model TE 仍有效 | 555.25 baseline | - | 发现 `s20` 优于 `s50` | 诊断完成 |
 | 4/28 | E005 | smoothing_50k | 50k smoothing 网格：`s5/s10/s15/s20/s30/s50/s100` | best `s10=551.21` | - | 相比 50k `s50=555.25`，本地 -4.04 | `s10` 进入候选 |
 | 4/28 | E006 | error_deep_dive | 基于当前最佳 OOF 做误差深挖：价格×车龄、品牌、车型、功率、里程、误差集中度 | 479.80 | 468.1260 | 定位主误差来源 | 下一步做高价低估校准 |
@@ -27,10 +27,29 @@
 | 4/29 | E013 | s10_power_age_age_detail_50k | 50k：`s10 + power_age + age_detail` | 550.89 | - | 相比 50k s10 本地 -0.32 | 只改善切片，不进主线 |
 | 4/29 | E014 | s10_model_age_group_stats_50k | 50k：`s10 + model_age_group_stats` | 550.24 | - | 相比 50k s10 本地 -0.97 | 候选但优先级低于 E011 |
 | 4/29 | E015 | s10_power_age_full | 全量：`s10 + power_age`，生成 OOF 和 testB submission | 488.13 / fold 514.43 | 485.6350 | 相比 E003 线上 +17.5090；相比全量 s10 OOF -1.05 | 单模型不提交，作为融合候选 |
+| 5/03 | E016 | five_model_power_age_blend | E003 四模型融合池加入 `s10_power_age`，优化式五模型融合搜索 | 477.73 / meta-CV 477.76 | 465.4393 | 相比 E003 线上 -2.6867；OOF -2.0719 | 曾为线上最优 |
+| 5/03 | E017 | priority1_power_age_extended_blend | 优先级1：补齐 `sqrt_s50/log_s20/log_s50 + power_age`，8 模型融合 | 475.78 / meta-CV 475.86 | 462.9080 | 相比 E016 线上 -2.5313；OOF -1.9478；meta-CV -1.9017 | 当前线上最优 |
+| 5/08 | E018 | feature_power_age_model_age_full | 全量：`s10 + power_age/model_age/brand_age` 新特征与交叉 TE，生成 testB submission | 487.77 / fold 514.70 | - | 相比 E015 OOF -0.36；仍弱于 E017 融合 | 单模型候选，不直接提交替代融合 |
 
 ## 关键基准
 
 当前线上最优：
+
+- ID：`E017`
+- submission：`outputs/correct_full150000_priority1_power_age_extended_blend_search/submission.csv`
+- online MAE：`462.9080`
+- OOF MAE：`475.7776`
+- meta-CV MAE：`475.8581`
+
+上一版线上最优：
+
+- ID：`E016`
+- submission：`outputs/correct_full150000_five_model_power_age_blend_search/submission.csv`
+- online MAE：`465.4393`
+- OOF MAE：`477.7254`
+- meta-CV MAE：`477.7597`
+
+更早线上最优：
 
 - ID：`E003`
 - submission：`outputs/correct_final_four_model_blend_predict/submission.csv`
@@ -250,3 +269,215 @@
 - E015 单模型线上明显弱于 E003，下降 `17.5090 MAE`。
 - 这不否定 `power_age` 特征，因为 E015 的正确定位是“融合候选成员”，不是替代四模型融合的单模型。
 - 后续不要再单独提交弱于融合池的单模型；应先做 OOF 融合搜索，再决定是否生成 submission。
+
+## 5/03 E016 五模型融合：E003 + s10_power_age
+
+状态：完成，已线上提交。
+
+实验目标：
+
+- 验证 E015 `s10_power_age` 是否能作为融合成员提升 E003 四模型融合，而不是单独替代融合。
+- 对五个全量 OOF 做融合搜索，并用 5-fold meta-CV 检查权重稳定性。
+
+输出：
+
+- 融合搜索：`outputs/correct_full150000_five_model_power_age_blend_search`
+- 误差切片：`outputs/correct_full150000_five_model_power_age_blend_error_slices`
+- submission：`outputs/correct_full150000_five_model_power_age_blend_search/submission.csv`
+- 脚本：`src/evaluate_multi_oof_blends.py`
+
+融合成员：
+
+- `log_s50`
+- `sqrt_s50`
+- `log_s10`
+- `log_s20`
+- `log_s10_power_age`
+
+搜索方式说明：
+
+- 原计划沿用 `0.025` 全网格，但五模型网格规模为 `135751` 组，直接全量搜索超时。
+- 改用连续 L1/MAE 优化 + 局部 `0.025` 网格候选确认。
+- 最优连续权重附近的离散权重也几乎同分，例如 `0.100/0.350/0.100/0.125/0.325` 的 OOF MAE 为 `477.7299`，仅比连续最优差 `0.0046`。
+
+整体结果：
+
+| run | OOF MAE | meta-CV MAE |
+|---|---:|---:|
+| E003 `correct_4blend` | `479.7973` | `479.8267` |
+| E016 `five_model_power_age_blend` | `477.7254` | `477.7597` |
+
+相对 E003：
+
+- OOF 改善：`2.0719`
+- meta-CV 改善：约 `2.0670`
+
+最优权重：
+
+| member | weight |
+|---|---:|
+| `log_s50` | `0.1001` |
+| `sqrt_s50` | `0.3621` |
+| `log_s10` | `0.1057` |
+| `log_s20` | `0.1094` |
+| `log_s10_power_age` | `0.3227` |
+
+meta-CV 权重稳定性：
+
+- `log_s10_power_age` 在 5 个 meta fold 中权重约 `0.3164 ~ 0.3261`。
+- `sqrt_s50` 仍是最大基础成员，权重约 `0.3475 ~ 0.3715`。
+- 说明 `power_age` 不是偶然微小权重，而是稳定提供互补信息。
+
+切片对比：
+
+| run | overall OOF | target5 MAE | target5 abs share | Q5 MAE | Q4 MAE | Q3 MAE | Q2 MAE | Q1 MAE |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| E003 `four_blend` | `479.7973` | `694.1257` | `0.6677` | `1172.1342` | `553.9885` | `347.9273` | `207.7073` | `123.2663` |
+| E016 `five_blend_power_age` | `477.7254` | `690.9243` | `0.6675` | `1167.0429` | `551.5255` | `346.7433` | `206.9636` | `122.3652` |
+
+结论：
+
+- E015 的正确用法被验证：单模型弱于 E003，但作为融合成员明显有效。
+- 五模型融合不仅改善 overall OOF，也改善 target5、Q5、Q4、Q1/Q2，没有观察到明显低价桶代价。
+- 线上 MAE 为 `465.4393`，相对 E003 `468.1260` 改善 `2.6867`。
+- E016 在当时成为线上最优，且线上改善幅度略大于 OOF 改善，说明本轮 `power_age` 融合方向可信。
+
+## 5/03 E017 优先级1：补齐 power_age 融合变体
+
+状态：完成，已线上提交。
+
+实验目标：
+
+- 按优先级1验证更多 `power_age` 变体是否能继续扩展融合池。
+- 先用 50k 中规模验证，确认有效后再跑全量，避免无效全量实验浪费时间。
+
+50k 验证：
+
+| run | baseline OOF | power_age OOF | OOF 改善 | 备注 |
+|---|---:|---:|---:|---|
+| `sqrt_s50` | `557.1374` | `555.7258` | `-1.4116` | overall 改善，Q5 略差但 Q4 改善 |
+| `log_s20` | `552.2890` | `550.1648` | `-2.1242` | 单模型改善明确 |
+| `log_s50` | `555.2518` | `550.0334` | `-5.2184` | 单模型改善最强 |
+
+50k 融合验证：
+
+| blend | OOF MAE | meta-CV MAE |
+|---|---:|---:|
+| 5 模型参照：E016 结构 | `540.6892` | `540.8626` |
+| 8 模型扩展：加入 3 个 power_age 变体 | `539.1236` | `539.3750` |
+
+结论：50k 上新增三个 `power_age` 变体都进入融合权重，扩展融合池相对 5 模型参照继续改善约 `1.5 MAE`，因此进入全量。
+
+全量输出：
+
+- 融合搜索：`outputs/correct_full150000_priority1_power_age_extended_blend_search`
+- 误差切片：`outputs/correct_full150000_priority1_power_age_extended_blend_error_slices`
+- submission：`outputs/correct_full150000_priority1_power_age_extended_blend_search/submission.csv`
+
+全量单模型 OOF：
+
+| run | OOF MAE |
+|---|---:|
+| `log_s50` | `489.2927` |
+| `sqrt_s50` | `489.5090` |
+| `log_s10` | `489.1857` |
+| `log_s20` | `488.8541` |
+| `log_s10_power_age` | `488.1344` |
+| `sqrt_s50_power_age` | `488.5160` |
+| `log_s20_power_age` | `487.4580` |
+| `log_s50_power_age` | `488.4619` |
+
+8 模型融合结果：
+
+| run | OOF MAE | meta-CV MAE |
+|---|---:|---:|
+| E016 `five_model_power_age_blend` | `477.7254` | `477.7597` |
+| E017 `priority1_power_age_extended_blend` | `475.7776` | `475.8581` |
+
+相对 E016：
+
+- OOF 改善：`1.9478`
+- meta-CV 改善：`1.9017`
+
+最优权重：
+
+| member | weight |
+|---|---:|
+| `log_s50` | `0.0873` |
+| `sqrt_s50` | `0.1823` |
+| `log_s10` | `0.0854` |
+| `log_s20` | `0.0694` |
+| `log_s10_power_age` | `0.0847` |
+| `sqrt_s50_power_age` | `0.2619` |
+| `log_s20_power_age` | `0.1568` |
+| `log_s50_power_age` | `0.0721` |
+
+切片对比：
+
+| run | overall OOF | target5 MAE | target5 abs share | Q5 MAE | Q4 MAE | Q3 MAE | Q2 MAE | Q1 MAE |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| E003 `four_blend` | `479.7973` | `694.1257` | `0.6677` | `1172.1342` | `553.9885` | `347.9273` | `207.7073` | `123.2663` |
+| E016 `five_blend_power_age` | `477.7254` | `690.9243` | `0.6675` | `1167.0429` | `551.5255` | `346.7433` | `206.9636` | `122.3652` |
+| E017 `priority1_8blend_power_age` | `475.7776` | `687.1613` | `0.6666` | `1159.6516` | `549.4229` | `345.7751` | `206.8800` | `123.1282` |
+
+结论：
+
+- “补齐 power_age 变体”方向成立：新增成员在 50k 和全量融合中都提供了稳定边际收益。
+- E017 相对 E016 继续改善 target5、Q5、Q4、Q3、Q2；Q1 比 E016 略差，但仍略好于 E003。
+- 线上 MAE 为 `462.9080`，相对 E016 `465.4393` 改善 `2.5313`。
+- E017 已成为当前线上最优，说明继续扩展 `power_age` 融合变体的方向线上成立。
+
+## 5/08 E018 全量复验：power_age/model_age/brand_age 新特征
+
+状态：完成，已生成 testB 预测文件，未线上提交。
+
+实验目标：
+
+- 将 50k 上小幅有效的 `power_age + model_age + brand_age` 新特征组合放到全量 150000 行复验。
+- 只做单模型全量训练和预测，不新增模型、不改参数、不融合。
+
+输出：
+
+- `outputs/test/correct_full150000_feature_power_age_model_age_new_s10_predict`
+- submission：`outputs/test/correct_full150000_feature_power_age_model_age_new_s10_predict/submission.csv`
+- OOF：`outputs/test/correct_full150000_feature_power_age_model_age_new_s10_predict/oof_predictions.csv`
+
+配置：
+
+- train：`data/raw/used_car_train_20200313.csv`
+- test：`data/raw/used_car_testB_20200421.csv`
+- model：LightGBM
+- `learning_rate=0.07`
+- `n_estimators=2150`
+- `num_leaves=287`
+- `target_mode=log1p`
+- `use_group_stats=true`
+- `use_power_age=true`
+- `use_model_age_group_stats=true`
+- `use_model_target_encoding=true`
+- `use_brand_age_target_encoding=true`
+- `use_model_age_target_encoding=true`
+- `use_model_backoff_target_encoding=true`
+- `target_encoding_smoothing=10`
+- CV：`repeated_stratified`, `3 folds x 3 repeats`
+- `predict_test=true`
+
+结果：
+
+| run | fold MAE | OOF MAE |
+|---|---:|---:|
+| E015 `s10_power_age_full` | `514.4319 ± 3.0353` | `488.1344` |
+| E018 `feature_power_age_model_age_full` | `514.7009 ± 3.4618` | `487.7743` |
+
+submission 统计：
+
+- rows：`50000`
+- price min：`13.9390`
+- price median：`3181.7629`
+- price max：`90420.2635`
+
+结论：
+
+- 相比 E015，E018 aggregated OOF 小幅改善 `0.3601`，但 fold mean 略差 `0.2690`，波动也更大。
+- 作为单模型仍明显弱于 E017 8 模型融合，因此不能直接替代当前线上最优。
+- 当前定位应是“潜在融合候选或消融对象”，下一步先拆分 `power_age`、`model_age_group_stats`、交叉 target encoding 的单独贡献，再决定是否补齐 submission 组件进入融合池。

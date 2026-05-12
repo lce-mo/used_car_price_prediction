@@ -1,103 +1,222 @@
 # 项目协作说明
 
-## 1. 协作与记录规则
+## 1. 项目目标
 
-### 1.1 项目目标
+本项目用于学习和实践天池二手车价格预测的完整机器学习流程。目标是根据车辆基础信息、匿名特征、车龄、里程、品牌、车型等字段预测二手车交易价格 `price`。
 
-这个项目的主要目标是通过二手车价格预测竞赛学习完整的机器学习建模流程。后续每一步实验都要说明为什么这样做、验证什么假设、结果如何解释，而不是只追求盲目堆特征或刷分。
+核心评价指标是 MAE：
 
-### 1.2 实验记录
+```text
+MAE = mean(abs(y_true - y_pred))
+```
 
-- 主实验日志使用 `experiments/experiment_log_2.md`。
-- 旧日志和旧输出只能作为历史参考，不能直接作为当前结论依据。
-- 每次有线上分数、关键 OOF 结果、重要失败方向或阶段性结论，都要写入实验日志。
+协作重点不是盲目堆特征或刷分，而是让每一步实验都能说明：
 
-### 1.3 输出目录
+- 为什么这样做。
+- 验证什么假设。
+- 本地 OOF、fold MAE、线上 MAE 如何变化。
+- 结果是否支持进入下一阶段。
 
-- 常规实验输出放在 `outputs/test/` 下。
-- 融合搜索、最终预测等特殊输出可以放在 `outputs/` 下的独立目录。
-- 目录名要能看出数据版本、核心特征/模型、CV 口径和是否生成预测文件。
+## 2. 当前工程状态
 
-## 2. 项目当前状态
+项目已经从旧的扁平脚本结构重构为模块化结构。以下旧文件删除是预期行为：
 
-### 2.1 最重要的状态变化：数据读取已修正
+- `src/features.py`
+- `src/tune_lightgbm.py`
+- `src/analyze_*.py`
+- `src/evaluate_*.py`
+- `src/summarize_experiments.py`
+- `experiments/` 下的旧日志文件
 
-此前项目中存在严重的数据读取问题：原始数据应该使用单空格分隔读取，即 `pd.read_csv(path, sep=" ")`，不能使用 `sep=r"\s+"`。旧读取方式会破坏字段对齐，导致此前相当一部分 CV、OOF、误差切片和实验结论失真。
+旧实验日志已迁移到 `docs/过去日志/`，当前主文档位于 `docs/`。
 
-当前 `src/train.py` 已加入正确读取约束：
+当前主要模块：
 
-- 使用 `RAW_DATA_SEPARATOR = " "`。
-- 通过 `validate_raw_dataframe` 检查价格、里程等关键字段，防止再次读错。
-- 后续实验必须基于修正后的数据读取逻辑。
+- `src/config.py`：路径、随机种子、默认训练配置。
+- `src/data/`：数据读取、清洗、校验、切分。
+- `src/features/`：特征构造、类别处理、日期/车龄、power-age、target encoding。
+- `src/models/`：训练、预测、CV、融合搜索、模型注册与标准输出。
+- `src/utils/`：IO、日志、指标。
+- `scripts/`：Makefile 调用的命令入口。
+- `docs/`：项目状态、数据字典、特征设计、实验日志、建模策略。
 
-因此，所有“错误读取数据”时期的结论只能作为思路参考，不能作为现在的主判断依据。
+## 3. 最重要的数据读取约束
 
-### 2.2 当前最佳线上结果
+原始数据必须使用单空格分隔读取：
 
-当前最佳提交来自正确读取数据后的四模型融合：
+```python
+pd.read_csv(path, sep=" ")
+```
 
-- 实验版本：E003 `correct_4blend`
-- 提交文件：`outputs/correct_final_four_model_blend_predict/submission.csv`
-- 线上 MAE：`468.1260`
-- OOF MAE：`479.7973`
-- 融合成员与权重：
-  - `0.175 * log_s50`
-  - `0.425 * sqrt_s50`
-  - `0.200 * log_s10`
-  - `0.200 * log_s20`
-- OOF 文件：`outputs/correct_full150000_four_model_blend_search/best_blend_oof_predictions.csv`
+禁止使用：
 
-后续所有优化都应该以这个融合结果作为主线基准，而不是只和单模型对比。
+```python
+pd.read_csv(path, sep=r"\s+")
+```
 
-### 2.3 当前可信基线
+原因：天池原始文件中存在空字段，使用正则空白分隔会破坏字段对齐，导致 CV、OOF、误差切片、线上判断全部失真。
 
-正确读取数据后的主要基线如下：
+当前代码中相关防护：
 
-| 实验 | 输出目录 | OOF MAE | fold mean MAE | 备注 |
-|---|---|---:|---:|---|
-| `correct_log_s50` | `outputs/test/correct_full150000_log_s50_repeated_predict` | `489.2927` | `515.2566 ± 4.0556` | 修正读取后的单模型基线 |
-| `correct_log_s10` | `outputs/test/correct_full150000_log_s10_repeated_predict` | `489.1857` | `515.0496 ± 2.6956` | 略优于 s50 |
-| `correct_first50000_log_s10` | `outputs/test/correct_first50000_log_s10_repeated` | `551.2101` | `581.2692 ± 7.1309` | 中规模快速验证基线 |
-| `correct_4blend` | `outputs/correct_full150000_four_model_blend_search` | `479.7973` | - | 当前主线最佳 OOF |
+- `src/config.py` 中定义 `RAW_DATA_SEPARATOR = " "`。
+- `src/data/validate_data.py` 和 `src/models/train_model.py` 会检查关键字段范围，识别疑似列错位。
 
-注意：`fold mean MAE` 和 `OOF MAE` 不是同一个指标。当前判断线上潜力时优先看 OOF MAE、融合后的 OOF MAE，以及最终线上 MAE。
+## 4. 标准目录约定
 
-### 2.4 已验证有效的方向
+### 4.1 输入数据
 
-目前仍然可信、可以继续推进的方向：
+原始数据放在 `data/raw/`，但不上传 GitHub。
 
-- `model target encoding` 仍然有效。
-- `group stats` 仍然有效。
-- `target-mode log1p` 和 `sqrt` 可以形成互补。
-- 不同 smoothing 的模型有融合价值，当前 `s10/s20/s50` 都进入过主线融合。
-- 高价老车仍是主要误差来源：
-  - Q5 价格桶贡献了约 `48.82%` 的绝对误差。
-  - 重点五组贡献了约 `66.89%` 的绝对误差。
-  - 重点五组是：
-    - `Q5 × 8y_plus`
-    - `Q4 × 8y_plus`
-    - `Q5 × 5_8y`
-    - `Q3 × 8y_plus`
-    - `Q5 × 3_5y`
+常用文件：
 
-### 2.5 最近一个有效但未超过主线的方向
+- `data/raw/used_car_train_20200313.csv`
+- `data/raw/used_car_testB_20200421.csv`
+- `data/raw/used_car_testA_20200313.csv`
+- `data/raw/used_car_train_first50000_correct.csv`
 
-`s10 + power_age` 在全量复验中是有效的单模型改进：
+### 4.2 中间数据
 
-- 输出目录：`outputs/test/correct_full150000_s10_power_age_repeated_predict`
-- OOF MAE：`488.1344`
-- fold mean MAE：`514.4319 ± 3.0353`
-- 线上 MAE：`485.6350`
+- `data/interim/`：清洗后的中间数据。
+- `data/processed/`：特征处理后的数据。
 
-结论：它比普通 `s10` 单模型更好，但远弱于当前四模型融合 `468.1260`。因此它不应该单独作为提交主线，而应该作为新的融合候选成员继续验证。
+这些目录只上传 `.gitkeep`，不上传生成的 CSV。
 
-### 2.6 已经降级或暂缓的方向
+### 4.3 标准输出
 
-以下方向暂时不要作为优先主线：
+标准输出目录如下：
 
-- 基于错误读取数据时期的所有 OOF 校准、专家模型、软权重结论。
-- hard-routed segmented expert，高价老车专家模型曾明显恶化整体 MAE。
-- 简单 OOF 校准规则，正确数据下收益很小；最佳记录约为 OOF `479.6307`，只比四模型融合提升约 `0.1665`。
-- `age_detail` 单独方向，中规模验证表现偏负。
-- `s10 + power_age + age_detail` 虽有小幅变化，但低价桶不稳定。
-- `model_age_group_stats` 在 5 万样本上整体有帮助，但 Q5 变差，优先级低于 `power_age` 融合扩展。
+```text
+outputs/
+  models/
+    baseline_model.pkl
+    best_model.pkl
+  predictions/
+    valid_predictions.csv
+    test_predictions.csv
+  submissions/
+    submission_001_baseline.csv
+    submission_002_improved.csv
+  reports/
+    eda_report.md
+    feature_report.md
+    error_analysis.md
+    model_summary.md
+  figures/
+```
+
+GitHub 只上传这些目录下的 `.gitkeep`，不上传模型、预测、提交或报告产物。
+
+## 5. 常用命令
+
+```bash
+make setup
+make data
+make features
+make train
+make predict
+make submit
+make eda
+make clean
+```
+
+命令说明：
+
+- `make setup`：安装 `requirements.txt`。
+- `make data`：读取 raw 并生成 `data/interim/train_clean.csv`、`data/interim/test_clean.csv`。
+- `make features`：生成 `data/processed/train_features.csv`、`data/processed/test_features.csv`。
+- `make train`：训练、OOF 评估、全量预测，并写出标准 `outputs/` 产物。
+- `make predict`：当前复用训练入口生成预测产物，不是快速加载 pickle 推理。
+- `make submit`：从 `outputs/predictions/test_predictions.csv` 生成标准提交文件。
+- `make clean`：清理 Python 缓存和 notebook checkpoint。
+
+## 6. 实验记录规则
+
+主实验日志：
+
+- `docs/experiment_log.md`
+
+旧日志：
+
+- `docs/过去日志/`
+
+记录要求：
+
+- 线上 MAE 必须来自真实提交，不能伪造或推测。
+- 本地效果优先记录 aggregated OOF MAE。
+- 如记录 fold 指标，写成 `OOF / fold mean ± std`。
+- 每个关键实验必须说明假设、配置、结果、结论和下一步判断。
+- 错误读取数据时期的实验只能作为历史参考，不能作为当前结论依据。
+
+## 7. 当前历史最佳
+
+历史线上最佳是 E017 `priority1_power_age_extended_blend`：
+
+- online MAE：`462.9080`
+- OOF MAE：`475.7776`
+- meta-CV MAE：`475.8581`
+
+重要说明：
+
+- 当前 `outputs/models/best_model.pkl` 保存的是最近一次标准训练入口的全量模型。
+- 它目前不等同于 E017 历史最优融合模型。
+- 后续需要将 E017 融合流程迁移到标准输出体系，并增加模型晋级机制。
+
+## 8. 已验证有效方向
+
+可信方向：
+
+- `model target encoding`
+- `group stats`
+- `log1p` 与 `sqrt` target transform 的互补
+- 不同 smoothing 的融合多样性
+- `power_age` 特征族
+- 多模型融合池扩展
+
+暂缓方向：
+
+- 错误读取时期的所有校准和专家模型结论
+- hard-routed segmented expert
+- 简单 OOF 后处理校准
+- `age_detail` 单独方向
+- `pow075 + power_age` 近期 50k 筛选偏弱
+
+## 9. GitHub 上传规则
+
+不上传：
+
+- 原始数据：`data/raw/*`
+- 中间数据：`data/interim/*`
+- 特征数据：`data/processed/*`
+- 模型：`*.pkl`, `*.joblib`, `*.model`
+- 预测和提交：`outputs/predictions/*`, `outputs/submissions/*`
+- 训练报告产物：`outputs/reports/*`
+- 大量实验输出：`outputs/test/*`, `outputs/main_lgbm_m2_q3/*`
+- Python 缓存：`__pycache__/`, `*.pyc`
+
+可以上传：
+
+- 源码
+- 脚本入口
+- 文档
+- `.gitkeep` 目录占位文件
+- `requirements.txt`
+- `Makefile`
+- `.gitignore`
+
+提交前必须检查：
+
+```bash
+git status --short --ignored
+git check-ignore -v data/raw/used_car_train_20200313.csv
+git check-ignore -v outputs/models/best_model.pkl
+git check-ignore -v outputs/predictions/test_predictions.csv
+```
+
+## 10. 协作约束
+
+- 不允许修改、覆盖或删除 `data/raw/` 中的原始数据。
+- 不允许为了跑通流程删除核心逻辑。
+- 新增复杂逻辑应放在 `src/`，`scripts/` 只做入口。
+- 新路径必须从 `src/config.py` 获取，避免写死绝对路径。
+- 关键实验和工程变更需要同步更新 `docs/`。
+- 不伪造实验指标；未知指标使用 `pending` 或 `null`。
