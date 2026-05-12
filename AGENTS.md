@@ -19,14 +19,7 @@ MAE = mean(abs(y_true - y_pred))
 
 ## 2. 当前工程状态
 
-项目已经从旧的扁平脚本结构重构为模块化结构。以下旧文件删除是预期行为：
-
-- `src/features.py`
-- `src/tune_lightgbm.py`
-- `src/analyze_*.py`
-- `src/evaluate_*.py`
-- `src/summarize_experiments.py`
-- `experiments/` 下的旧日志文件
+项目已经从旧的扁平脚本结构重构为模块化结构。
 
 旧实验日志已迁移到 `docs/过去日志/`，当前主文档位于 `docs/`。
 

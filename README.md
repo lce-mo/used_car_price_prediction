@@ -49,27 +49,6 @@ data/raw/used_car_train_20200313.csv
 data/raw/used_car_testB_20200421.csv
 ```
 
-可选文件：
-
-```text
-data/raw/used_car_testA_20200313.csv
-data/raw/used_car_train_first50000_correct.csv
-```
-
-重要：原始数据必须使用单空格分隔读取。
-
-```python
-pd.read_csv(path, sep=" ")
-```
-
-不要使用：
-
-```python
-pd.read_csv(path, sep=r"\s+")
-```
-
-原始文件中存在空字段，错误分隔符会造成字段错位，导致本地 CV、OOF、误差分析和线上结论失真。
-
 ## 3. 安装依赖
 
 ```bash
@@ -169,36 +148,3 @@ outputs/
 
 这些文档描述了当前项目状态、字段含义、特征设计、建模策略和实验结论。
 
-## 8. GitHub 上传说明
-
-`.gitignore` 已配置为不上传数据和产物：
-
-- `data/raw/*`
-- `data/interim/*`
-- `data/processed/*`
-- `outputs/models/*.pkl`
-- `outputs/predictions/*.csv`
-- `outputs/submissions/*.csv`
-- `outputs/reports/*`
-- `outputs/test/*`
-- `__pycache__/`
-
-只保留目录占位文件 `.gitkeep`，便于克隆后保留标准结构。
-
-提交前建议检查：
-
-```bash
-git status --short --ignored
-```
-
-确认大数据、模型、预测文件和提交文件都显示为 ignored。
-
-## 9. 后续方向
-
-优先事项：
-
-1. 将 E017 融合流程迁移到标准 `outputs/` 结构。
-2. 增加模型注册与晋级机制，区分 baseline、candidate、best。
-3. 将 `make predict` 改成加载 `outputs/models/best_model.pkl` 直接预测。
-4. 固化高价老车误差切片到 `outputs/reports/error_analysis.md`。
-5. 继续验证 `power_age`、target transform、smoothing 多样性的融合收益。
