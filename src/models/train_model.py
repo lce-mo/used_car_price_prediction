@@ -924,7 +924,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default="q5_5plus",
         help="Definition of the target high-price older-car segment.",
     )
-    parser.add_argument("--model-name", choices=["gbrt", "lightgbm"], default=DEFAULT_MODEL_NAME)
+    parser.add_argument("--model-name", choices=["gbrt", "lightgbm", "catboost"], default=DEFAULT_MODEL_NAME)
     parser.add_argument("--learning-rate", type=float, default=DEFAULT_LEARNING_RATE)
     parser.add_argument("--n-estimators", type=int, default=DEFAULT_N_ESTIMATORS)
     parser.add_argument("--num-leaves", type=int, default=DEFAULT_NUM_LEAVES)

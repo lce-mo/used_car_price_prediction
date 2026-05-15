@@ -1,0 +1,484 @@
+{
+  "current_task": {
+    "name": "target_transform_blend_stage",
+    "status": "completed",
+    "completed_at": "2026-05-15",
+    "summary": "Ran sqrt/pow075 target-transform variants on TE05 features and built a confirmed log1p/sqrt/pow075 OOF blend."
+  },
+  "completed_tasks": [
+    {
+      "name": "generate_experiment_report",
+      "status": "completed",
+      "output": "docs/experiment_reports/experiment_report_2026-05-14.md",
+      "sources": [
+        "docs/experiment_log.md",
+        "docs/e017_reproduction.md",
+        "src/features/feature_docs.md"
+      ]
+    },
+    {
+      "name": "model_training_validation",
+      "status": "completed",
+      "roles": [
+        "Developer",
+        "Tester",
+        "Reviewer"
+      ],
+      "train_entrypoint": "python scripts/train.py",
+      "data_inputs": {
+        "train_path": "data/raw/used_car_train_20200313.csv",
+        "test_path": "data/raw/used_car_testB_20200421.csv",
+        "feature_pipeline": "src.features.prepare_features",
+        "processed_feature_files_checked": [
+          "data/processed/train_features.csv",
+          "data/processed/test_features.csv"
+        ]
+      },
+      "reproducibility": {
+        "cv_strategy": "kfold",
+        "n_splits": 5,
+        "cv_repeats": 1,
+        "cv_random_state": 42,
+        "model_random_state": 42,
+        "target_mode": "log1p(price)"
+      },
+      "model_params": {
+        "learning_rate": 0.08,
+        "n_estimators": 400,
+        "num_leaves": 63,
+        "subsample": 0.8,
+        "colsample_bytree": 0.8,
+        "lightgbm_objective": "regression",
+        "sample_weight_mode": "none"
+      },
+      "runs": [
+        {
+          "model_name": "lightgbm",
+          "command": "python scripts/train.py --model-name lightgbm --cv-strategy kfold --cv-repeats 1 --n-splits 5 --cv-random-state 42 --model-random-state 42 --output-dir outputs/codex_lightgbm_kfold_seed42 --predict-test true",
+          "output_dir": "outputs/codex_lightgbm_kfold_seed42",
+          "model_path": "outputs/models/lightgbm_model.pkl",
+          "oof_mae": 592.0056131173644,
+          "mae_mean": 592.0056131173644,
+          "mae_std": 5.334172855431932,
+          "fold_mae": [
+            595.2352249076895,
+            599.1122245558233,
+            589.9976355351771,
+            592.4578129679647,
+            583.2251676201677
+          ]
+        },
+        {
+          "model_name": "catboost",
+          "command": "python scripts/train.py --model-name catboost --cv-strategy kfold --cv-repeats 1 --n-splits 5 --cv-random-state 42 --model-random-state 42 --output-dir outputs/codex_catboost_kfold_seed42 --predict-test true",
+          "output_dir": "outputs/codex_catboost_kfold_seed42",
+          "model_path": "outputs/models/catboost_model.pkl",
+          "oof_mae": 611.5894777547028,
+          "mae_mean": 611.5894777547028,
+          "mae_std": 3.809313009877113,
+          "fold_mae": [
+            608.7909177562965,
+            613.0404743776035,
+            610.5520839066431,
+            618.1993728308454,
+            607.3645399021256
+          ]
+        }
+      ],
+      "best_run": {
+        "model_name": "lightgbm",
+        "model_path": "outputs/models/best_model.pkl",
+        "selection_metric": "oof_mae",
+        "selection_value": 592.0056131173644
+      }
+    },
+    {
+      "name": "feature_engineering_diagnostics_and_plan",
+      "status": "completed",
+      "roles": [
+        "Analyst",
+        "Developer",
+        "Tester"
+      ],
+      "baseline": {
+        "model_name": "lightgbm",
+        "cv_strategy": "kfold",
+        "n_splits": 5,
+        "cv_random_state": 42,
+        "model_random_state": 42,
+        "target_mode": "log1p(price)",
+        "oof_mae": 592.0056131173644
+      },
+      "diagnostic_outputs": [
+        "outputs/reports/feature_error_diagnostics_codex_lightgbm_kfold_seed42.md",
+        "outputs/reports/feature_error_diagnostics_codex_lightgbm_kfold_seed42.json",
+        "outputs/reports/feature_error_slices_codex_lightgbm_kfold_seed42.csv",
+        "outputs/reports/feature_error_price_age_slices_codex_lightgbm_kfold_seed42.csv",
+        "outputs/reports/feature_error_combo_slices_codex_lightgbm_kfold_seed42.csv",
+        "outputs/reports/feature_engineering_execution_plan_2026-05-15.md"
+      ],
+      "key_findings": [
+        "Top price decile p10 contributes about 33.34% of total absolute error with MAE 1973.591 and average underprediction bias -729.483.",
+        "High-price old-car slices are weak: p10+8y_plus MAE 2717.934 and bias -1732.356; p10+5_8y MAE 1795.315 and bias -785.636.",
+        "The first experiment batch should prioritize non-target power-age, model-age peer stats, and brand-relative features before target encoding."
+      ],
+      "first_batch_experiments": [
+        {
+          "id": "FE01",
+          "name": "power_age",
+          "command": "python scripts/train.py --model-name lightgbm --cv-strategy kfold --cv-repeats 1 --n-splits 5 --cv-random-state 42 --model-random-state 42 --use-power-age true --output-dir outputs/feature_experiments/fe01_power_age --predict-test true"
+        },
+        {
+          "id": "FE02",
+          "name": "model_age_group_stats",
+          "command": "python scripts/train.py --model-name lightgbm --cv-strategy kfold --cv-repeats 1 --n-splits 5 --cv-random-state 42 --model-random-state 42 --use-model-age-group-stats true --output-dir outputs/feature_experiments/fe02_model_age_group_stats --predict-test true"
+        },
+        {
+          "id": "FE03",
+          "name": "brand_relative",
+          "command": "python scripts/train.py --model-name lightgbm --cv-strategy kfold --cv-repeats 1 --n-splits 5 --cv-random-state 42 --model-random-state 42 --use-brand-relative true --output-dir outputs/feature_experiments/fe03_brand_relative --predict-test true"
+        },
+        {
+          "id": "FE04",
+          "name": "power_age_model_age_stats",
+          "command": "python scripts/train.py --model-name lightgbm --cv-strategy kfold --cv-repeats 1 --n-splits 5 --cv-random-state 42 --model-random-state 42 --use-power-age true --use-model-age-group-stats true --output-dir outputs/feature_experiments/fe04_power_age_model_age_stats --predict-test true"
+        },
+        {
+          "id": "FE05",
+          "name": "power_age_brand_relative",
+          "command": "python scripts/train.py --model-name lightgbm --cv-strategy kfold --cv-repeats 1 --n-splits 5 --cv-random-state 42 --model-random-state 42 --use-power-age true --use-brand-relative true --output-dir outputs/feature_experiments/fe05_power_age_brand_relative --predict-test true"
+        },
+        {
+          "id": "FE06",
+          "name": "non_target_combined",
+          "command": "python scripts/train.py --model-name lightgbm --cv-strategy kfold --cv-repeats 1 --n-splits 5 --cv-random-state 42 --model-random-state 42 --use-power-age true --use-model-age-group-stats true --use-brand-relative true --output-dir outputs/feature_experiments/fe06_non_target_combined --predict-test true"
+        },
+        {
+          "id": "FE07",
+          "name": "power_age_age_detail",
+          "command": "python scripts/train.py --model-name lightgbm --cv-strategy kfold --cv-repeats 1 --n-splits 5 --cv-random-state 42 --model-random-state 42 --use-power-age true --use-age-detail true --output-dir outputs/feature_experiments/fe07_power_age_age_detail --predict-test true"
+        }
+      ],
+      "promotion_rules": {
+        "minimum_oof_mae_improvement": 3.0,
+        "baseline_oof_mae": 592.0056131173644,
+        "required_slice_checks": [
+          "p10+8y_plus",
+          "p10+5_8y",
+          "p9+8y_plus"
+        ],
+        "confirmation_cv": "repeated_stratified 5 folds x 3 repeats, seed 42"
+      }
+    },
+    {
+      "name": "feature_engineering_first_batch_execution",
+      "status": "completed",
+      "roles": [
+        "Developer",
+        "Tester",
+        "Reviewer"
+      ],
+      "baseline_oof_mae": 592.0056131173644,
+      "first_batch_summary": "outputs/reports/feature_experiment_summary_2026-05-15.md",
+      "confirmed_summary": "outputs/reports/feature_experiment_fe05_confirmed_summary_2026-05-15.md",
+      "best_candidate": {
+        "id": "FE05-confirmed",
+        "name": "power_age_brand_relative",
+        "output_dir": "outputs/feature_experiments/fe05_power_age_brand_relative_confirmed",
+        "model_path": "outputs/models/best_model.pkl",
+        "cv_strategy": "repeated_stratified",
+        "total_folds": 15,
+        "oof_mae": 571.1870381252432,
+        "fold_mean_mae": 584.6914407142493,
+        "fold_std_mae": 6.7100558315670895,
+        "delta_oof_vs_baseline_kfold": -20.81857499212117,
+        "delta_fold_mean_vs_baseline_kfold": -7.314172403115094
+      },
+      "key_slice_results": [
+        {
+          "run": "fe05_repeated_stratified",
+          "slice": "p10_8y_plus",
+          "rows": 2564,
+          "mae": 2536.7793183614835,
+          "bias": -1590.4984892156692,
+          "delta_vs_baseline_kfold": -181.15455942901008
+        },
+        {
+          "run": "fe05_repeated_stratified",
+          "slice": "p10_5_8y",
+          "rows": 4336,
+          "mae": 1730.9832115391819,
+          "bias": -814.4355386473003,
+          "delta_vs_baseline_kfold": -64.33175865801081
+        },
+        {
+          "run": "fe05_repeated_stratified",
+          "slice": "p9_8y_plus",
+          "rows": 5492,
+          "mae": 1179.4521561014571,
+          "bias": -564.2077942611487,
+          "delta_vs_baseline_kfold": -33.40431308812731
+        }
+      ],
+      "next_stage_base_features": {
+        "use_power_age": true,
+        "use_brand_relative": true,
+        "use_model_age_group_stats": false,
+        "use_age_detail": false
+      }
+    },
+    {
+      "name": "target_encoding_feature_stage",
+      "status": "completed",
+      "roles": [
+        "Developer",
+        "Tester",
+        "Reviewer"
+      ],
+      "stage_summary": "outputs/reports/target_encoding_experiment_summary_2026-05-15.md",
+      "confirmed_summary": "outputs/reports/target_encoding_te05_confirmed_summary_2026-05-15.md",
+      "best_candidate": {
+        "id": "TE05-confirmed",
+        "name": "all_non_target_model_te_s10",
+        "output_dir": "outputs/feature_experiments/te05_all_non_target_model_te_s10_confirmed",
+        "model_path": "outputs/models/best_model.pkl",
+        "cv_strategy": "repeated_stratified",
+        "total_folds": 15,
+        "oof_mae": 565.2603485646986,
+        "fold_mean_mae": 580.2962300198191,
+        "fold_std_mae": 5.992868100028263,
+        "delta_oof_vs_baseline_kfold": -26.745264552665844,
+        "delta_oof_vs_fe05_confirmed": -5.926689560544673,
+        "delta_fold_mean_vs_fe05_confirmed": -4.395210694430261,
+        "feature_switches": {
+          "use_power_age": true,
+          "use_model_age_group_stats": true,
+          "use_brand_relative": true,
+          "use_model_target_encoding": true,
+          "target_encoding_smoothing": 10.0
+        }
+      },
+      "key_slice_results": [
+        {
+          "run": "te05_confirmed",
+          "slice": "p10_8y_plus",
+          "rows": 2564,
+          "mae": 2505.0127000085126,
+          "bias": -1553.355151345552,
+          "delta_vs_baseline_kfold": -212.921177781981,
+          "delta_vs_fe05_confirmed": -31.76661835297091
+        },
+        {
+          "run": "te05_confirmed",
+          "slice": "p10_5_8y",
+          "rows": 4336,
+          "mae": 1730.8377280751808,
+          "bias": -821.7773845874034,
+          "delta_vs_baseline_kfold": -64.47724212201183,
+          "delta_vs_fe05_confirmed": -0.14548346400101764
+        },
+        {
+          "run": "te05_confirmed",
+          "slice": "p9_8y_plus",
+          "rows": 5492,
+          "mae": 1155.5356175351042,
+          "bias": -542.8615515650977,
+          "delta_vs_baseline_kfold": -57.32085165448029,
+          "delta_vs_fe05_confirmed": -23.916538566352983
+        }
+      ]
+    },
+    {
+      "name": "enhanced_target_encoding_feature_stage",
+      "status": "completed",
+      "roles": [
+        "Developer",
+        "Tester",
+        "Reviewer"
+      ],
+      "stage_summary": "outputs/reports/enhanced_target_encoding_experiment_summary_2026-05-15.md",
+      "best_verified_model_retained": {
+        "id": "TE05-confirmed",
+        "name": "all_non_target_model_te_s10",
+        "output_dir": "outputs/feature_experiments/te05_all_non_target_model_te_s10_confirmed",
+        "model_path": "outputs/models/best_model.pkl",
+        "cv_strategy": "repeated_stratified",
+        "total_folds": 15,
+        "oof_mae": 565.2603485646986,
+        "fold_mean_mae": 580.2962300198191,
+        "fold_std_mae": 5.992868100028263,
+        "feature_switches": {
+          "use_power_age": true,
+          "use_model_age_group_stats": true,
+          "use_brand_relative": true,
+          "use_model_target_encoding": true,
+          "target_encoding_smoothing": 10.0
+        }
+      },
+      "screened_variants": [
+        {
+          "id": "TE06",
+          "name": "te05_model_backoff_te_s10",
+          "oof_mae": 579.4053620311955,
+          "delta_vs_te05_kfold": 0.06902527137276593
+        },
+        {
+          "id": "TE10",
+          "name": "te05_backoff_model_age_te_s10",
+          "oof_mae": 579.8063567210045,
+          "delta_vs_te05_kfold": 0.47001996118171974
+        },
+        {
+          "id": "TE07",
+          "name": "te05_model_age_te_s10",
+          "oof_mae": 580.1512533654488,
+          "delta_vs_te05_kfold": 0.814916605626081
+        },
+        {
+          "id": "TE08",
+          "name": "te05_brand_age_te_s10",
+          "oof_mae": 582.9528426674235,
+          "delta_vs_te05_kfold": 3.6165059076007537
+        },
+        {
+          "id": "TE09",
+          "name": "te05_model_low_freq_s10",
+          "oof_mae": 583.0366901461731,
+          "delta_vs_te05_kfold": 3.7003533863503435
+        }
+      ],
+      "decision": "No enhanced TE variant beat TE05 KFold; retain TE05-confirmed as best verified model."
+    },
+    {
+      "name": "target_transform_blend_stage",
+      "status": "completed",
+      "roles": [
+        "Developer",
+        "Tester",
+        "Reviewer"
+      ],
+      "stage_summary": "outputs/reports/target_transform_blend_summary_2026-05-15.md",
+      "best_single_model": {
+        "id": "TT01-confirmed",
+        "name": "te05_sqrt_s10",
+        "output_dir": "outputs/feature_experiments/tt01_te05_sqrt_s10_confirmed",
+        "model_path": "outputs/models/best_model.pkl",
+        "oof_mae": 536.0303849644224,
+        "fold_mean_mae": 552.8258176805367,
+        "fold_std_mae": 5.95832723531758,
+        "target_mode": "sqrt"
+      },
+      "best_submission": {
+        "id": "TT04-confirmed-blend",
+        "name": "te05_log1p_sqrt_pow075_confirmed_blend",
+        "output_dir": "outputs/feature_experiments/tt04_te05_target_transform_blend_confirmed",
+        "submission_path": "outputs/submissions/submission_003_target_transform_blend.csv",
+        "meta_cv_mae": 529.0655209716675,
+        "best_full_mae": 529.0530319481306,
+        "meta_cv_valid_std": 4.377358721723094,
+        "weights": {
+          "log1p": 0.09227090392651861,
+          "sqrt": 0.49560175818463814,
+          "pow075": 0.41212733788884326
+        },
+        "base_oof_mae": {
+          "log1p": 565.2603485646986,
+          "sqrt": 536.0303849644225,
+          "pow075": 538.9740003710486
+        }
+      },
+      "overall_results": [
+        {
+          "run": "tt04_blend_confirmed",
+          "kind": "blend_meta_cv",
+          "oof_mae": 529.0655209716675,
+          "fold_mean_mae": 529.0655209716675,
+          "fold_std_mae": 4.377358721723094,
+          "cv_strategy": "meta_cv_on_confirmed_oof",
+          "total_folds": 5,
+          "delta_vs_baseline_kfold": -62.940092145696894,
+          "delta_vs_te05_log1p_confirmed": -36.19482759303105
+        },
+        {
+          "run": "tt01_sqrt_confirmed",
+          "kind": "single_model",
+          "oof_mae": 536.0303849644224,
+          "fold_mean_mae": 552.8258176805367,
+          "fold_std_mae": 5.95832723531758,
+          "cv_strategy": "repeated_stratified",
+          "total_folds": 15,
+          "delta_vs_baseline_kfold": -55.97522815294201,
+          "delta_vs_te05_log1p_confirmed": -29.229963600276164
+        },
+        {
+          "run": "tt02_pow075_confirmed",
+          "kind": "single_model",
+          "oof_mae": 538.9740003710486,
+          "fold_mean_mae": 556.0939937366351,
+          "fold_std_mae": 5.534835886906594,
+          "cv_strategy": "repeated_stratified",
+          "total_folds": 15,
+          "delta_vs_baseline_kfold": -53.03161274631577,
+          "delta_vs_te05_log1p_confirmed": -26.28634819364993
+        },
+        {
+          "run": "te05_log1p_confirmed",
+          "kind": "single_model",
+          "oof_mae": 565.2603485646986,
+          "fold_mean_mae": 580.2962300198191,
+          "fold_std_mae": 5.992868100028263,
+          "cv_strategy": "repeated_stratified",
+          "total_folds": 15,
+          "delta_vs_baseline_kfold": -26.745264552665844,
+          "delta_vs_te05_log1p_confirmed": 0.0
+        },
+        {
+          "run": "baseline_kfold",
+          "kind": "single_model",
+          "oof_mae": 592.0056131173644,
+          "fold_mean_mae": 592.0056131173644,
+          "fold_std_mae": 5.334172855431932,
+          "cv_strategy": "kfold",
+          "total_folds": 5,
+          "delta_vs_baseline_kfold": 0.0,
+          "delta_vs_te05_log1p_confirmed": 26.745264552665844
+        }
+      ]
+    }
+  ],
+  "pending_tasks": [
+    "Align current E017 reproduction outputs against historical E017 member artifacts before claiming a true metric improvement.",
+    "Validate additional power_age blend members: log_s5_power_age, log_s15_power_age, log_s30_power_age.",
+    "Tune CatBoost-specific parameters before using it as a production candidate because default CatBoost underperformed LightGBM in this run.",
+    "Compare submission_003_target_transform_blend.csv against leaderboard/online MAE when available.",
+    "Consider adding another diverse blend member, e.g. tuned CatBoost or LightGBM with different num_leaves, only after recording online result."
+  ],
+  "key_decisions": [
+    "Only confirmed metrics from existing project documents were included in the experiment report.",
+    "Historical E017 remains the recorded online-best baseline until reproduction differences are fully aligned.",
+    "The current model-training task used offline CV before writing full-fit prediction/model artifacts.",
+    "LightGBM is selected as best_model.pkl for this run because its 5-fold OOF MAE is lower than CatBoost.",
+    "Feature engineering optimization will start with non-target features before fold-safe target encoding.",
+    "First-batch feature promotion requires at least 3.0 OOF MAE improvement and no material regression on high-price old-car slices.",
+    "FE05 power_age_brand_relative is the confirmed first-batch non-target feature candidate.",
+    "The next optimization stage should use FE05 as the base and add fold-safe target encoding variants.",
+    "TE05 all_non_target_model_te_s10 is the current best verified feature-engineering model.",
+    "The best TE interaction uses all non-target feature switches plus fold-safe model target encoding with smoothing 10.",
+    "Backoff/model-age/brand-age/low-frequency TE variants did not beat TE05; retain TE05-confirmed as best verified single model.",
+    "Next optimization should focus on target transform diversity or blending, not more TE columns in the current LightGBM setup.",
+    "TT04 confirmed blend is the current best submission artifact with meta-CV MAE 529.0655.",
+    "TT01 sqrt confirmed is the current best single-model artifact and best_model.pkl points to it."
+  ],
+  "issues": [
+    {
+      "id": "CTX-001",
+      "description": ".agent/context.json was empty at the earlier report task start and did not contain experiment status.",
+      "status": "recorded"
+    },
+    {
+      "id": "TRAIN-001",
+      "description": "CatBoost was not installed in the environment at task start; requirements.txt was updated and catboost was installed before training.",
+      "status": "resolved"
+    }
+  ]
+}
