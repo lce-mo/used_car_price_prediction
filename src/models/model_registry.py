@@ -11,6 +11,11 @@ from lightgbm import LGBMRegressor
 from sklearn.ensemble import GradientBoostingRegressor
 
 try:
+    from catboost import CatBoostRegressor
+except ImportError:  # pragma: no cover - exercised only when optional dependency is absent.
+    CatBoostRegressor = None
+
+try:
     from src.config import MODEL_DIR, PREDICTION_DIR, REPORT_DIR, SUBMISSION_DIR
 except ModuleNotFoundError:
     from config import MODEL_DIR, PREDICTION_DIR, REPORT_DIR, SUBMISSION_DIR
@@ -20,11 +25,12 @@ MODEL_REGISTRY = {
     "legacy_lightgbm": "Existing LightGBM pipeline in src/train.py",
     "legacy_gbrt": "Existing GradientBoostingRegressor option in src/train.py",
     "lightgbm": "LightGBM regressor used by the current training pipeline",
+    "catboost": "CatBoost regressor used by the current training pipeline",
     "gbrt": "GradientBoostingRegressor fallback used by the current training pipeline",
     "baseline_placeholder": "Reserved for a future simple baseline model",
 }
 
-ModelType = GradientBoostingRegressor | LGBMRegressor
+ModelType = object
 
 
 def list_models() -> dict[str, str]:
@@ -63,6 +69,22 @@ def get_model(
             random_state=model_random_state,
             objective=lightgbm_objective,
             verbose=-1,
+        )
+
+    if model_name == "catboost":
+        if CatBoostRegressor is None:
+            raise ImportError("CatBoost is not installed. Install dependencies with `pip install -r requirements.txt`.")
+        loss_function = "MAE" if lightgbm_objective == "mae" else "RMSE"
+        return CatBoostRegressor(
+            iterations=n_estimators,
+            learning_rate=learning_rate,
+            depth=8,
+            loss_function=loss_function,
+            random_seed=model_random_state,
+            subsample=subsample,
+            rsm=colsample_bytree,
+            verbose=False,
+            allow_writing_files=False,
         )
 
     raise ValueError(f"Unsupported model_name: {model_name}")
@@ -234,7 +256,8 @@ def write_standard_outputs(
             "metrics": metrics,
             "model_artifact": model_artifact,
         }
-        for filename in ["baseline_model.pkl", "best_model.pkl"]:
+        model_name = str(metrics.get("model_name", "model"))
+        for filename in ["baseline_model.pkl", "best_model.pkl", f"{model_name}_model.pkl"]:
             with (MODEL_DIR / filename).open("wb") as file:
                 pickle.dump(bundle, file)
 
